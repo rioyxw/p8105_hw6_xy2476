@@ -9,6 +9,7 @@ output: github_document
 library(tidyverse)
 library(modelr)
 library(p8105.datasets)
+library(ggcorrplot)
 
 knitr::opts_chunk$set(
   fig.width = 9,
@@ -30,13 +31,10 @@ scale_fill_discrete = scale_fill_viridis_d
 
 ## Problem 1
 
-__Describe the raw data:__
-The data included the location of the killing, whether an arrest was made and, in most cases, basic demographic information about each victim in 50 large U.S. cities. There was one data entered error, Tulsa_AL, and got cleaned out during the cleaning process. 
-
 Read in the data.
 ```{r}
 homicide_df = 
-  read_csv("homicide_data/homicide-data.csv", na = c("", "NA", "Unknown")) %>% 
+  read_csv("./data/homicide-data.csv", na = c("", "NA", "Unknown")) %>% 
   mutate(
     city_state = str_c(city, state, sep = ","),
     victim_age = as.numeric(victim_age),
@@ -103,6 +101,93 @@ models_results_df %>%
   geom_errorbar(aes(ymin = CI_lower, ymax = CI_upper)) + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
+
+__Comment__: 
+
+
+
+
+
+## Problem 2
+
+Find some residuals
+
+```{r}
+baby_df = 
+  read_csv("./data/birthweight.csv", na = c("", "NA", "Unknown")) %>% 
+  mutate(
+    babysex = factor(babysex),
+    frace = factor(frace),
+    malform = factor(malform),
+    mrace = factor(mrace)
+  )
+```
+
+
+```{r}
+model.matrix(~0+., data=baby_df) %>% 
+  cor(use = "pairwise.complete.obs") %>% 
+  ggcorrplot(show.diag = F, type="lower", 
+             lab=TRUE, lab_size=2, 
+             title = "Correlation of parameters of interest")
+```
+
+fit a model
+
+```{r}
+model_fit = lm(bwt ~ blength + delwt + gaweeks, data = baby_df)
+
+model_fit %>% 
+  broom::glance()
+
+model_fit %>% 
+  broom::tidy()
+
+```
+
+```{r}
+#residual of birth length
+baby_df %>% 
+  modelr::add_residuals(model_fit) %>% 
+  ggplot(aes(x = blength, y = resid)) + 
+  geom_point()
+
+#residual of mother's weight at delivery
+baby_df %>% 
+  modelr::add_residuals(model_fit) %>% 
+  ggplot(aes(x = delwt, y = resid)) + 
+  geom_point()
+
+#residual of gestational age
+baby_df %>% 
+  modelr::add_residuals(model_fit) %>% 
+  ggplot(aes(x = gaweeks, y = resid)) + 
+  geom_point()
+```
+
+
+compare models
+
+```{r}
+model_fit = lm(bwt ~ blength + delwt + gaweeks, data = baby_df)
+model_1 = lm(bwt ~ blength + gaweeks, data = baby_df)
+model_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df)
+```
+
+
+
+```{r}
+cv_df =
+  crossv_mc(baby_df, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  )
+
+
+```
+
+
 
 
 
