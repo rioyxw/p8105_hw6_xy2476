@@ -152,6 +152,8 @@ baby_df %>%
   modelr::add_residuals(model_fit) %>% 
   modelr::add_predictions(model_fit) %>% 
   ggplot(aes(x = pred, y = resid)) + geom_point()
+
+##check scale
 ```
 
 
@@ -160,6 +162,7 @@ compare models
 model_fit = lm(bwt ~ delwt + gaweeks, data = baby_df)
 model_1 = lm(bwt ~ blength + gaweeks, data = baby_df)
 model_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df)
+##change name
 ```
 
 
@@ -198,6 +201,8 @@ cv_df %>%
     names_prefix = "rmse_") %>% 
   mutate(model = fct_inorder(model)) %>% 
   ggplot(aes(x = model, y = rmse)) + geom_violin()
+
+##change name
 ```
 
 adding too many variable can 
@@ -250,8 +255,6 @@ r_sq %>%
 
 
 ```{r}
-set.seed(1)
-
 betas = 
   weather_df %>% 
   modelr::bootstrap(n = 500) %>% 
@@ -270,17 +273,30 @@ betas =
   summarise_all(na.omit) %>% 
   mutate(
     beta_c = log(beta0 * beta1)
-  )
+  ) 
+
+
+  toDelete = seq(1, nrow(betas), 2)
+betas = betas[ toDelete ,]
+  
   
 #distribution
 betas %>% 
   ggplot(aes(x = beta_c)) + geom_density()
   
 #95% CI
+ 
 betas %>% 
   summarize(
     ci_lower = quantile(beta_c, 0.025),
     ci_upper = quantile(beta_c, 0.975)
   )
+
+ci_lower = quantile(betas$beta_c, 0.025)
+ci_upper = quantile(betas$beta_c, 0.975)
+
+ci_lower
+ci_upper
+##pull 
 ```
 
