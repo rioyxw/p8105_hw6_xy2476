@@ -2,7 +2,9 @@
 title: "Homework 6 solutions"
 author: "Rio Yan"
 date: '`r format(Sys.time(), "%Y-%m-%d")`'
-output: github_document
+output: 
+  github_document:
+    pandoc_args: --webtex
 ---
 
 ```{r setup, include=FALSE}
@@ -95,7 +97,7 @@ models_results_df =
 
 ```{r}
 models_results_df %>% 
-  filter(term == "victim_sexMale") %>% 
+  filter(term == "victim_raceWhite") %>% 
   mutate(city_state = fct_reorder(city_state, OR)) %>% 
   ggplot(aes(x = city_state, y = OR)) + 
   geom_point() + 
@@ -104,8 +106,7 @@ models_results_df %>%
 ```
 
 __Comment__: 
-
-
+We can see that Tampa, FL has the lowest OR with small 95% CI range and Boston,MA has the highest and has the largest 95% CI range. All the OR are above 0, meaning that comparing to black population, when victim is white, the cases have a higher chance of being solved. 
 
 
 
@@ -117,15 +118,14 @@ Find some residuals
 baby_df = 
   read_csv("./data/birthweight.csv") %>% 
   mutate(
-    babysex = factor(babysex),
-    frace = factor(frace),
-    malform = factor(malform),
-    mrace = factor(mrace)
+    babysex = factor(babysex), #convert numeric to factor
+    frace = factor(frace), #convert numeric to factor
+    malform = factor(malform), #convert numeric to factor
+    mrace = factor(mrace) #convert numeric to factor
   ) 
 
 baby_df %>% 
   anyNA()
-
 #check if there is NA: no NAs
 ```
 
@@ -138,23 +138,44 @@ model.matrix(~0+., data=baby_df) %>%
              title = "Correlation of parameters of interest")
 ```
 
+Using correlation matrix to identify which parameters have higher positive association with birth weight. Decide to pick delwt(mother’s weight at delivery (pounds)) and gaweeks(gestational age in weeks). 
+
 fit a model
 
 ```{r}
 model_fit = lm(bwt ~ delwt + gaweeks, data = baby_df)
+
+#See quality of the model 
+model_fit %>%
+  broom::glance()
+
+#Both are significant coeff
+model_fit %>%
+  broom::tidy()
 ```
 
 
 plot residual
 
 ```{r}
+baby_df %>%
+  modelr::add_residuals(model_fit) %>%
+  ggplot(aes(x = resid)) + geom_density()
+```
+
+```{r}
 baby_df %>% 
   modelr::add_residuals(model_fit) %>% 
   modelr::add_predictions(model_fit) %>% 
-  ggplot(aes(x = pred, y = resid)) + geom_point()
-
-##check scale
+  ggplot(aes(x = pred, y = resid)) + geom_point() +
+  labs(
+    title = "Residuals against fitted value",
+    x = "Fitted value",
+    y = "Residuals"
+  )
 ```
+
+Overall, residuals are centered around 0. 
 
 
 compare models
@@ -162,7 +183,6 @@ compare models
 model_fit = lm(bwt ~ delwt + gaweeks, data = baby_df)
 model_1 = lm(bwt ~ blength + gaweeks, data = baby_df)
 model_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df)
-##change name
 ```
 
 
@@ -189,7 +209,7 @@ cv_df =
   )
 ```
 
-plot prediction error
+plot prediction error for each models
 
 ```{r}
 cv_df %>% 
@@ -205,8 +225,7 @@ cv_df %>%
 ##change name
 ```
 
-adding too many variable can 
-adjusted r sqare， degress of value
+From the graph we can see that model 2 using head circumference, length, sex, and all interactions has the lower rmse, meaning a better model, while the model I created has the highest rmse. This may be because adding too many variable increases the degrees of value and increases it's predictive accuracy. 
 
 
 ## Problem 3
@@ -230,10 +249,12 @@ weather_df =
 
 Bootstrapping
 
+For $\hat{r^2}$
+
 ```{r}
 r_sq = 
   weather_df %>% 
-  modelr::bootstrap(n = 500) %>% 
+  modelr::bootstrap(n = 5000) %>% 
   mutate(
     models = map(strap, ~lm(tmax ~ tmin, data = .x)),
     results = map(models, broom::glance)
@@ -243,21 +264,24 @@ r_sq =
 
 #distribution
 r_sq %>% 
-  ggplot(aes(x = r.squared)) + geom_density()
+  ggplot(aes(x = r.squared)) + geom_density() +
+  labs(
+    title = "Distribution of R Squared Values"
+  )
+
 
 #95% CI
-r_sq %>% 
-  summarize(
-    ci_lower = quantile(r.squared, 0.025),
-    ci_upper = quantile(r.squared, 0.975)
-  )
+r2_ci_lower = quantile(pull(r_sq, r.squared), 0.025)
+r2_ci_upper = quantile(pull(r_sq, r.squared), 0.975)
 ```
 
+
+For $log(\hat{\beta_0} * \hat{\beta_1})$
 
 ```{r}
 betas = 
   weather_df %>% 
-  modelr::bootstrap(n = 500) %>% 
+  modelr::bootstrap(n = 5000) %>% 
   mutate(
     models = map(strap, ~lm(tmax ~ tmin, data = .x)),
     results = map(models, broom::tidy)
@@ -282,21 +306,15 @@ betas = betas[ toDelete ,]
   
 #distribution
 betas %>% 
-  ggplot(aes(x = beta_c)) + geom_density()
-  
-#95% CI
- 
-betas %>% 
-  summarize(
-    ci_lower = quantile(beta_c, 0.025),
-    ci_upper = quantile(beta_c, 0.975)
+  ggplot(aes(x = beta_c)) + geom_density() +
+  labs(
+    title = "Distribution of Log Estimates"
   )
 
-ci_lower = quantile(betas$beta_c, 0.025)
-ci_upper = quantile(betas$beta_c, 0.975)
-
-ci_lower
-ci_upper
-##pull 
+#95% CI
+beta_ci_lower = quantile(pull(betas,beta_c), 0.025)
+beta_ci_upper = quantile(pull(betas,beta_c), 0.975)
 ```
 
+
+The distributions of $\hat{r^2}$ and $log(\hat{\beta_0} * \hat{\beta_1})$ using bootstrap seem to be following a normal distribution with rsquare's distribution centered around 0.915 and beta centered around 2.02. Both are slightly left skewed. $\hat{r^2}$ 95%CI is (`r r2_ci_lower`, `r r2_ci_upper`) and $log(\hat{\beta_0} * \hat{\beta_1})$ 95%CI is (`r beta_ci_lower`, `r beta_ci_upper`). 
