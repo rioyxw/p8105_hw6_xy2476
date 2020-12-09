@@ -35,7 +35,7 @@ scale_fill_discrete = scale_fill_viridis_d
 ## Problem 1
 
 Read in the data.
-```{r}
+```{r, message=FALSE}
 homicide_df = 
   read_csv("./data/homicide-data.csv", na = c("", "NA", "Unknown")) %>% 
   mutate(
@@ -114,7 +114,7 @@ We can see that Tampa, FL has the lowest OR with small 95% CI range and Boston,M
 
 Find some residuals
 
-```{r}
+```{r, message=FALSE}
 baby_df = 
   read_csv("./data/birthweight.csv") %>% 
   mutate(
@@ -125,49 +125,38 @@ baby_df =
   ) 
 
 baby_df %>% 
-  anyNA()
+  sapply(function(na) sum(is.na(na))) 
 #check if there is NA: no NAs
 ```
 
+Model selection (stepwise regression)
 
 ```{r}
-model.matrix(~0+., data=baby_df) %>% 
-  cor(use = "pairwise.complete.obs") %>% 
-  ggcorrplot(show.diag = F, type="lower", 
-             lab=TRUE, lab_size=2, 
-             title = "Correlation of parameters of interest")
+test_model = lm(bwt ~ ., data = baby_df)
+step(test_model, direction = 'backward')
 ```
 
-Using correlation matrix to identify which parameters have higher positive association with birth weight. Decide to pick delwt(mother’s weight at delivery (pounds)) and gaweeks(gestational age in weeks). 
+Using stepwise regression to identify which models, because Lower AIC values indicate a better-fit model, so I choose the last model with babysex+ bhead + blength + delwt + fincome + gaweeks + mheight + mrace + parity + ppwt + smoken.
+
 
 fit a model
 
 ```{r}
-model_fit = lm(bwt ~ delwt + gaweeks, data = baby_df)
+model_fit = lm(bwt ~ babysex + bhead + blength + delwt + fincome + gaweeks + mheight + mrace + parity + ppwt + smoken, data = baby_df)
 
-#See quality of the model 
-model_fit %>%
-  broom::glance()
-
-#Both are significant coeff
-model_fit %>%
-  broom::tidy()
+summary(model_fit)
 ```
+
+final model is bwt ~ babysex + bhead + blength + delwt + fincome + gaweeks + mheight + mrace + parity + ppwt + smoken and F-test shows significant. 
 
 
 plot residual
 
-```{r}
-baby_df %>%
-  modelr::add_residuals(model_fit) %>%
-  ggplot(aes(x = resid)) + geom_density()
-```
-
-```{r}
+```{r, message=FALSE}
 baby_df %>% 
   modelr::add_residuals(model_fit) %>% 
   modelr::add_predictions(model_fit) %>% 
-  ggplot(aes(x = pred, y = resid)) + geom_point() +
+  ggplot(aes(x = pred, y = resid)) + geom_point(alpha = 0.4) +
   labs(
     title = "Residuals against fitted value",
     x = "Fitted value",
@@ -175,16 +164,7 @@ baby_df %>%
   )
 ```
 
-Overall, residuals are centered around 0. 
-
-
-compare models
-```{r}
-model_fit = lm(bwt ~ delwt + gaweeks, data = baby_df)
-model_1 = lm(bwt ~ blength + gaweeks, data = baby_df)
-model_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df)
-```
-
+Overall, most of the residuals are centered around 0, meaning our model's assumption of normality holds. However, when the prediction is less than 2000 or greater than 4000, residuals are not normally distributed. 
 
 
 ```{r}
@@ -198,7 +178,7 @@ cv_df =
 cv_df = 
   cv_df %>% 
   mutate(
-    model_fit = map(train, ~lm(bwt ~ delwt + gaweeks, data = .x)),
+    model_fit = map(train, ~lm(bwt ~ babysex + bhead + blength + delwt + fincome + gaweeks + mheight + mrace + parity + ppwt + smoken, data = .x)),
     model_1 = map(train, ~lm(bwt ~blength + gaweeks, data = .x)),
     model_2 = map(train, ~lm(bwt ~ bhead * blength * babysex, data = .x))
   ) %>% 
@@ -220,19 +200,31 @@ cv_df %>%
     values_to = "rmse",
     names_prefix = "rmse_") %>% 
   mutate(model = fct_inorder(model)) %>% 
-  ggplot(aes(x = model, y = rmse)) + geom_violin()
-
-##change name
+  ggplot(aes(x = model, y = rmse)) + geom_violin() +
+  labs(title = "Compare fitted model to other model",
+       x = "Model",
+       y = "RMSE")
 ```
 
-From the graph we can see that model 2 using head circumference, length, sex, and all interactions has the lower rmse, meaning a better model, while the model I created has the highest rmse. This may be because adding too many variable increases the degrees of value and increases it's predictive accuracy. 
+
+
+compare models
+
+`model_fit = bwt ~ babysex + bhead + blength + delwt + fincome + gaweeks+ mheight + mrace + parity + ppwt + smoken`
+
+`model_1 = bwt ~ blength + gaweeks`
+
+`model_2 = bwt ~ bhead * blength * babysex`
+
+
+From the graph we can see that the model that i fitted with babysex + bhead + blength + delwt + fincome + gaweeks + mheight + mrace + parity + ppwt + smoken shows higer predictive accuracy, suggesting a better model out of the three. Model 2 is the second best, this may be because adding too many variable increases the degrees of value and increases it's predictive accuracy. 
 
 
 ## Problem 3
 
 import data
 
-```{r}
+```{r, message=FALSE}
 weather_df = 
   rnoaa::meteo_pull_monitors(
     c("USW00094728"),
@@ -243,7 +235,7 @@ weather_df =
     name = recode(id, USW00094728 = "CentralPark_NY"),
     tmin = tmin / 10,
     tmax = tmax / 10) %>%
-  select(tmax, tmin)
+  select(name, id, everything())
 ```
 
 
@@ -266,7 +258,7 @@ r_sq =
 r_sq %>% 
   ggplot(aes(x = r.squared)) + geom_density() +
   labs(
-    title = "Distribution of R Squared Values"
+    title = "Distribution of R Squared"
   )
 
 
@@ -317,4 +309,4 @@ beta_ci_upper = quantile(pull(betas,beta_c), 0.975)
 ```
 
 
-The distributions of $\hat{r^2}$ and $log(\hat{\beta_0} * \hat{\beta_1})$ using bootstrap seem to be following a normal distribution with rsquare's distribution centered around 0.915 and beta centered around 2.02. Both are slightly left skewed. $\hat{r^2}$ 95%CI is (`r r2_ci_lower`, `r r2_ci_upper`) and $log(\hat{\beta_0} * \hat{\beta_1})$ 95%CI is (`r beta_ci_lower`, `r beta_ci_upper`). 
+The distributions of $\hat{r^2}$ and $log(\hat{\beta_0} * \hat{\beta_1})$ using bootstrap seem to be following a normal distribution with $\hat{r^2}$s distribution centered around 0.915 and $log(\hat{\beta_0} * \hat{\beta_1})$ centered around 2.02. Both are slightly left skewed. $\hat{r^2}$ 95%CI is (`r r2_ci_lower`, `r r2_ci_upper`) and $log(\hat{\beta_0} * \hat{\beta_1})$ 95%CI is (`r beta_ci_lower`, `r beta_ci_upper`). 
